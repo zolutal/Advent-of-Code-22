@@ -1,0 +1,31 @@
+#! /usr/bin/env python3
+
+from pathlib import Path
+import subprocess
+import sys
+import os
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2 or not os.path.exists(sys.argv[1]):
+        print("Expected a file as an argument")
+        sys.exit(-1)
+
+    path = Path(sys.argv[1])
+    if not path.suffix == '.S':
+        print("Expected assembly file to have a .S extension")
+        sys.exit(-1)
+
+    print("Assembling file %s" % str(path))
+
+    obj_path = path.with_suffix(".o")
+    elf_path = path.with_suffix("")
+
+    asm_cmd = f"aarch64-linux-gnu-as -o {obj_path} {path}".split(" ")
+    subprocess.call(asm_cmd)
+    ld_cmd = f"aarch64-linux-gnu-ld -o {elf_path} {obj_path}".split(" ")
+    subprocess.call(ld_cmd)
+    print("Output assembled binary to '%s'\n" % elf_path)
+
+    print("Executing binary:")
+    run_cmd = f"qemu-aarch64 {elf_path}".split(" ")
+    subprocess.call(run_cmd)
