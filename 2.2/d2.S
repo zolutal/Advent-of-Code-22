@@ -6,12 +6,6 @@ out_msg:
     .ascii    "Score:\n\0"
 out_len = . - out_msg
 
-out_data:
-    .quad     0
-    .quad     0
-out_data_end:
-    .byte     0xa
-
 .text
 
 .globl _start
@@ -141,38 +135,53 @@ _start:
         mov     w8, #93       // SYS_EXIT
         svc     #0
 
-    h2a:
-        // pass x4 as ptr to convert to ascii
-        ldr     x1, =out_data_end // output ptr
-        sub     x1, x1, #1        // output ptr--
-        mov     x2, #0            // counter
-        mov     x6, #10           // const ten for div/mul
+h2a:  // prints register x0's contents as decimal
+    mov     x29, sp            // base pointer
+    sub     sp, sp, #64
 
-        // zero out_data
-        str     xzr, [x1, -8]
-        str     xzr, [x1, -16]
+    mov     x1, #0             // counter
+    mov     x10, #10           // const ten for div/mul
 
-        // char = 0x30 + result - (10*(result/10))
-        h2a_loop:
-            udiv x3, x4, x6
-            mul x3, x3, x6
-            sub x3, x4, x3
+    // zero out_data
+    str     xzr, [x29]
+    str     xzr, [x29, 8]
 
-            add x3, x3, #0x30
-            strb w3, [x1, x2]
-            sub x2, x2, #1
-            udiv x4, x4, x6
+    // char = 0x30 + result - (10*(result/10))
+    h2a_loop:
+        udiv x3, x4, x10
+        mul x3, x3, x10
+        sub x3, x4, x3
 
-            cmp x4, #0
-            bne h2a_loop
+        add x3, x3, #0x30
+        strb w3, [x29, x1] // base pointer + counter
+        add x1, x1, #1
+        udiv x4, x4, x10
 
-        h2a_write:
-            add     x1, x1, x2    // add negative offset to start of output
+        cmp x4, #0
+        bne h2a_loop
 
-            mvn     x2, x2        // length = ~(counter)
-            add     x2, x2, #2    // length += 2
+    h2a_reverse: // need to reverse the values
+        mov x28, x29
+        sub x28, x28, #64 // base pointer -64
+        mov x2, #0        // new counter
 
-            mov     x0, #1        // fd = STDOUT
-            mov     w8, #64       // SYS_WRITE
-            svc     #0
-        ret
+        h2a_reverse_loop:
+            sub x1, x1, #1
+            ldrb w3, [x29, x1]
+            strb w3, [x28, x2]
+            add x2, x2, #1
+
+            cmp x1, #0
+            bne h2a_reverse_loop
+
+    h2a_write:
+        mov     x0, #1         // fd = STDOUT
+        mov     x1, x28        // output (bp - 64)
+        add     x2, x2, #1     // length += 1
+        strb    wzr, [x28, x2] // null terminate
+
+        mov     w8, #64        // SYS_WRITE
+        svc     #0
+
+    add sp, sp, #64
+    ret
